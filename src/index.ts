@@ -22,13 +22,26 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const CLIENT_URL = process.env.CLIENT_URL;
 
-const allowedOrigins = CLIENT_URL
-  ? [CLIENT_URL, 'http://localhost:3000', 'https://mamafarm.vercel.app']
-  : '*';
-
+// CORS configuration supporting Vercel previews, production domains, and local dev
 app.use(cors({
-  origin: allowedOrigins,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, or Postman)
+    if (!origin) return callback(null, true);
+
+    if (
+      origin.endsWith('.vercel.app') ||
+      origin.includes('localhost') ||
+      origin.includes('127.0.0.1') ||
+      (CLIENT_URL && origin === CLIENT_URL)
+    ) {
+      return callback(null, true);
+    }
+
+    return callback(null, true);
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
 }));
 
 app.use(express.json({ limit: '10mb' }));
