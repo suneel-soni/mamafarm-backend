@@ -25,6 +25,7 @@ const PORT = process.env.PORT || 5000;
 const defaultAllowedOrigins = [
   'https://www.mamafarm.in',
   'https://mamafarm.in',
+  'https://api.mamafarm.in',
   'https://mamafarm-frontend-nine.vercel.app',
   'http://localhost:3000',
   'http://127.0.0.1:3000',
