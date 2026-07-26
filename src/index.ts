@@ -1,6 +1,8 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { connectToDatabase } from './config/db';
 
 import authRoutes from './routes/auth.routes';
@@ -16,13 +18,16 @@ import dashboardRoutes from './routes/dashboard.routes';
 import reportRoutes from './routes/report.routes';
 import resetRoutes from './routes/reset.routes';
 
-dotenv.config();
-
 const app = express();
 const PORT = process.env.PORT || 5000;
+const CLIENT_URL = process.env.CLIENT_URL;
+
+const allowedOrigins = CLIENT_URL
+  ? [CLIENT_URL, 'http://localhost:3000', 'https://mamafarm.vercel.app']
+  : '*';
 
 app.use(cors({
-  origin: '*',
+  origin: allowedOrigins,
   credentials: true,
 }));
 
