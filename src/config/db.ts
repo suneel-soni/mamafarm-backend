@@ -7,7 +7,7 @@ let isConnected = false;
 
 const MONGODB_URI =
   process.env.MONGODB_URI ||
-  'mongodb+srv://suneelsoni4u_db:MuniyA7264@tracker.dbbwb2b.mongodb.net/mamafarm?retryWrites=true&w=majority&appName=tracker';
+  'mongodb+srv://suneelsoni4u_db:MuniyA8878@tracker.dbbwb2b.mongodb.net/mamafarm?retryWrites=true&w=majority&appName=tracker';
 
 export async function connectToDatabase(): Promise<typeof mongoose> {
   if (isConnected && mongoose.connection.readyState === 1) {

@@ -3,20 +3,23 @@
 Node.js + Express + Mongoose REST API server for MamaFarm Organic Sprouts Business Tracker.
 
 ## Prerequisites
+
 - Node.js v18+
 - npm or yarn
 
 ## Local Setup
 
 1. Install dependencies:
+
    ```bash
    npm install
    ```
 
 2. Configure environment variables in `.env`:
+
    ```env
    PORT=5000
-   MONGODB_URI=mongodb+srv://suneelsoni4u_db:MuniyA7264@tracker.dbbwb2b.mongodb.net/mamafarm?retryWrites=true&w=majority&appName=tracker
+   MONGODB_URI=mongodb+srv://suneelsoni4u_db:MuniyA8878@tracker.dbbwb2b.mongodb.net/mamafarm?retryWrites=true&w=majority&appName=tracker
    JWT_SECRET=mamafarm_secret_key_2026
    CLIENT_URL=http://localhost:3000
    ```
@@ -49,6 +52,8 @@ The API server will run at `http://localhost:5000`.
 - `POST /api/reset-sales` - Reset sales test data
 
 ## Deployment (Render / Railway)
+
 Set the environment variables in your Render / Railway dashboard and set the build / start commands:
+
 - Build Command: `npm run build`
 - Start Command: `npm start`
