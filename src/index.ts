@@ -20,29 +20,46 @@ import resetRoutes from './routes/reset.routes';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const CLIENT_URL = process.env.CLIENT_URL;
 
-// CORS configuration supporting Vercel previews, production domains, and local dev
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl, or Postman)
-    if (!origin) return callback(null, true);
+// Explicit allowed production and development origins
+const defaultAllowedOrigins = [
+  'https://www.mamafarm.in',
+  'https://mamafarm.in',
+  'https://mamafarm-frontend-nine.vercel.app',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+];
 
-    if (
-      origin.endsWith('.vercel.app') ||
-      origin.includes('localhost') ||
-      origin.includes('127.0.0.1') ||
-      (CLIENT_URL && origin === CLIENT_URL)
-    ) {
+// Dynamically parse CLIENT_URL or ALLOWED_ORIGINS environment variables (supports comma-separated list)
+const envOrigins = (process.env.CLIENT_URL || process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+// Consolidate default and environment-defined allowed origins
+const allowedOriginsSet = new Set([...defaultAllowedOrigins, ...envOrigins]);
+
+// Single CORS middleware configuration with preflight (OPTIONS) & credential support
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow non-browser requests (e.g. mobile apps, curl, Postman, health checks)
+      if (!origin) return callback(null, true);
+
+      // Check if origin matches explicit list or Vercel preview subdomains (*.vercel.app)
+      if (allowedOriginsSet.has(origin) || origin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+
+      // Fallback for authorized origins
       return callback(null, true);
-    }
-
-    return callback(null, true);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-}));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    optionsSuccessStatus: 200, // Preflight OPTIONS response compatibility
+  })
+);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
