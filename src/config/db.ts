@@ -2,9 +2,6 @@ import mongoose from 'mongoose';
 import { seedData } from '../utils/seed';
 import fs from 'fs';
 import path from 'path';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 let isConnected = false;
 
@@ -19,7 +16,7 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
     try {
       console.log('Connecting to MongoDB via process.env.MONGODB_URI...');
       const instance = await mongoose.connect(mongoUri, {
-        serverSelectionTimeoutMS: 4000,
+        serverSelectionTimeoutMS: 5000,
       });
       console.log(`✅ MongoDB Connected Successfully: ${instance.connection.host}`);
       isConnected = true;
@@ -28,11 +25,18 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
     } catch (error: any) {
       console.error('================================');
       console.error('MongoDB Connection Failed');
-      console.error('Message:', error.message);
+      console.error('Error:', error.message);
       console.error('================================');
+
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(`Failed to connect to production MongoDB: ${error.message}`);
+      }
     }
   } else {
-    console.warn('⚠️ MONGODB_URI not found in process.env');
+    console.warn('⚠️ MONGODB_URI is not defined in process.env');
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('MONGODB_URI environment variable is missing in production');
+    }
   }
 
   try {
