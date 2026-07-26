@@ -70,19 +70,42 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'MamaFarm Backend API', timestamp: new Date() });
 });
 
-// API Routes
+// API Routes (Mounted on both /api/* and /* for compatibility)
 app.use('/api/auth', authRoutes);
+app.use('/auth', authRoutes);
+
 app.use('/api/shops', shopRoutes);
+app.use('/shops', shopRoutes);
+
 app.use('/api/deliveries', deliveryRoutes);
+app.use('/deliveries', deliveryRoutes);
+
 app.use('/api/payments', paymentRoutes);
+app.use('/payments', paymentRoutes);
+
 app.use('/api/returns', returnRoutes);
+app.use('/returns', returnRoutes);
+
 app.use('/api/materials', materialRoutes);
+app.use('/materials', materialRoutes);
+
 app.use('/api/suppliers', supplierRoutes);
+app.use('/suppliers', supplierRoutes);
+
 app.use('/api/expenses', expenseRoutes);
+app.use('/expenses', expenseRoutes);
+
 app.use('/api/inventory', inventoryRoutes);
+app.use('/inventory', inventoryRoutes);
+
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/dashboard', dashboardRoutes);
+
 app.use('/api/reports', reportRoutes);
+app.use('/reports', reportRoutes);
+
 app.use('/api/reset-sales', resetRoutes);
+app.use('/reset-sales', resetRoutes);
 
 connectToDatabase().then(() => {
   app.listen(PORT, () => {
