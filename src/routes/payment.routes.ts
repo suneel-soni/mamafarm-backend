@@ -45,23 +45,28 @@ router.post('/', async (req: Request, res: Response) => {
     const count = await Payment.countDocuments();
     const paymentNumber = `PAY-${Date.now().toString().slice(-4)}-${count + 1}`;
 
+    const targetShopId = body.shopId || body.shop;
+    const targetSupplierId = body.supplierId || body.supplier;
+
     let partyName = body.partyName || '';
-    if (body.entityType === 'shop' && body.shop) {
-      const shop = await Shop.findById(body.shop);
+    if (body.entityType === 'shop' && targetShopId) {
+      const shop = await Shop.findById(targetShopId);
       if (shop) partyName = shop.shopName;
-    } else if (body.entityType === 'supplier' && body.supplier) {
-      const supp = await Supplier.findById(body.supplier);
+    } else if (body.entityType === 'supplier' && targetSupplierId) {
+      const supp = await Supplier.findById(targetSupplierId);
       if (supp) partyName = supp.name;
     }
 
     const newPayment = await Payment.create({
       ...body,
+      ...(targetShopId ? { shop: targetShopId, shopId: targetShopId } : {}),
+      ...(targetSupplierId ? { supplier: targetSupplierId, supplierId: targetSupplierId } : {}),
       paymentNumber,
       partyName,
     });
 
-    if (body.entityType === 'shop' && body.shop) {
-      await recalculateShop(String(body.shop));
+    if (body.entityType === 'shop' && targetShopId) {
+      await recalculateShop(String(targetShopId));
     }
 
     return successResponse(res, newPayment, 201);

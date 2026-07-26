@@ -62,6 +62,8 @@ router.post('/', async (req: Request, res: Response) => {
 
     const newReturn = await ReturnOrder.create({
       ...body,
+      shop: shop._id,
+      shopId: shop._id,
       returnNumber,
       shopName: shop.shopName,
       totalRefundAmount,

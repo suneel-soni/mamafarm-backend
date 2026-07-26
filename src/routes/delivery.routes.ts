@@ -72,7 +72,19 @@ router.post('/', async (req: Request, res: Response) => {
     const count = await Delivery.countDocuments();
     const deliveryNumber = `DEL-${Date.now().toString().slice(-4)}-${count + 1}`;
 
-    const subTotal = body.items.reduce((sum: number, item: any) => sum + (item.rate * item.quantity), 0);
+    const normalizedItems = body.items.map((item: any) => {
+      const qty = Number(item.quantity) || 0;
+      const rate = Number(item.rate) || 0;
+      return {
+        ...item,
+        unit: item.unit || 'packets',
+        quantity: qty,
+        rate: rate,
+        amount: item.amount !== undefined ? Number(item.amount) : qty * rate,
+      };
+    });
+
+    const subTotal = normalizedItems.reduce((sum: number, item: any) => sum + item.amount, 0);
     const discount = body.discount || 0;
     const netAmount = Math.max(0, subTotal - discount);
     const amountPaid = body.amountPaid || 0;
@@ -83,6 +95,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     const delivery = await Delivery.create({
       ...body,
+      items: normalizedItems,
       shop: shop._id,
       shopId: shop._id,
       shopName: shop.shopName,
@@ -122,7 +135,19 @@ router.put('/:id', async (req: Request, res: Response) => {
     if (!existingDelivery) return errorResponse(res, 'Delivery not found', 404);
 
     if (body.items) {
-      const subTotal = body.items.reduce((sum: number, item: any) => sum + (item.rate * item.quantity), 0);
+      const normalizedItems = body.items.map((item: any) => {
+        const qty = Number(item.quantity) || 0;
+        const rate = Number(item.rate) || 0;
+        return {
+          ...item,
+          unit: item.unit || 'packets',
+          quantity: qty,
+          rate: rate,
+          amount: item.amount !== undefined ? Number(item.amount) : qty * rate,
+        };
+      });
+      body.items = normalizedItems;
+      const subTotal = normalizedItems.reduce((sum: number, item: any) => sum + item.amount, 0);
       const discount = body.discount !== undefined ? body.discount : existingDelivery.discount;
       body.subTotal = subTotal;
       body.netAmount = Math.max(0, subTotal - discount);

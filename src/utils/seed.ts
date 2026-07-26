@@ -16,7 +16,7 @@ export const seedData = async () => {
       { phone: '8130188878' },
       {
         name: 'MamaFarm Owner',
-        email: '8130188878@mamafarm.com',
+        email: 'contact@mamafarm.com',
         password: hashedPassword,
         role: 'admin',
         phone: '8130188878',
@@ -25,12 +25,16 @@ export const seedData = async () => {
       { upsert: true, new: true }
     );
 
-    const shopCount = await Shop.countDocuments();
+    // 2. Clean up any legacy dummy seed shops if present
+    await Shop.deleteMany({
+      shopName: { $in: ['Fresh Veggies Mart', 'Green Grocery Hub', 'Organic Life Supermarket'] },
+    });
+
     const supplierCount = await Supplier.countDocuments();
     const materialCount = await Material.countDocuments();
 
-    if (shopCount > 0 || supplierCount > 0 || materialCount > 0) {
-      console.log('Database already contains user data (Shops/Suppliers/Materials). Skipping static seed.');
+    if (supplierCount > 0 || materialCount > 0) {
+      console.log('Database already contains user data (Suppliers/Materials). Skipping static seed.');
       return;
     }
 
@@ -38,10 +42,10 @@ export const seedData = async () => {
 
     // 2. Settings
     await Settings.create({
-      businessName: 'MamaFarm Organic Sprouts',
+      businessName: 'MamaFarm',
       phone: '+91 81301 88878',
       email: 'contact@mamafarm.com',
-      address: 'Plot 42, Green Agro Food Park, New Delhi',
+      address: 'Bengaluru, Karnataka',
       gstNumber: '07AAACM1234F1Z9',
     });
 
@@ -51,10 +55,10 @@ export const seedData = async () => {
       contactPerson: 'Ramesh Kumar',
       phone: '+91 9811223344',
       email: 'ramesh@agropulses.com',
-      address: 'Grain Market Yard, Shop 14, Delhi',
+      address: 'Deverabisanahalli',
       gstNumber: '07AGROP1234A1Z1',
-      totalPurchased: 45000,
-      pendingPayment: 5000,
+      totalPurchased: 0,
+      pendingPayment: 0,
     });
 
     const supplier2 = await Supplier.create({
@@ -62,9 +66,9 @@ export const seedData = async () => {
       contactPerson: 'Anil Gupta',
       phone: '+91 9899887766',
       email: 'sales@ecopack.com',
-      address: 'Industrial Area Phase 2, Noida',
+      address: 'Deverabisanahalli',
       gstNumber: '09ECOPK5678B2Z4',
-      totalPurchased: 12000,
+      totalPurchased: 0,
       pendingPayment: 0,
     });
 
@@ -73,11 +77,11 @@ export const seedData = async () => {
       name: 'Raw Green Moong Grain',
       category: 'Raw Bean',
       supplier: supplier1._id,
-      quantity: 250,
+      quantity: 1,
       unit: 'kg',
-      purchasePrice: 95,
+      purchasePrice: 110,
       gstPercent: 5,
-      minStockAlert: 50,
+      minStockAlert: 1,
       paymentStatus: 'partial',
     });
 
@@ -85,11 +89,11 @@ export const seedData = async () => {
       name: 'Desi Brown Chana Grain',
       category: 'Raw Bean',
       supplier: supplier1._id,
-      quantity: 180,
+      quantity: 1,
       unit: 'kg',
-      purchasePrice: 75,
+      purchasePrice: 85,
       gstPercent: 5,
-      minStockAlert: 40,
+      minStockAlert: 1,
       paymentStatus: 'paid',
     });
 
@@ -97,55 +101,15 @@ export const seedData = async () => {
       name: 'Sprout Pouches',
       category: 'Packaging',
       supplier: supplier2._id,
-      quantity: 2000,
+      quantity: 50,
       unit: 'pcs',
-      purchasePrice: 1.5,
+      purchasePrice: 3,
       gstPercent: 12,
-      minStockAlert: 300,
+      minStockAlert: 10,
       paymentStatus: 'paid',
     });
 
-    // 5. Shops / Clients
-    await Shop.create({
-      shopCode: 'SHOP-101',
-      shopName: 'Fresh Veggies Mart',
-      ownerName: 'Suresh Patel',
-      phone: '+91 9810012345',
-      address: 'Shop 12, Sector 18 Market, Noida',
-      area: 'Noida Sector 18',
-      gstNumber: '09FRESH1234C1Z3',
-      outstandingBalance: 1800,
-      totalDeliveredValue: 8500,
-      totalPaidAmount: 6700,
-    });
-
-    await Shop.create({
-      shopCode: 'SHOP-102',
-      shopName: 'Green Grocery Hub',
-      ownerName: 'Vikram Singh',
-      phone: '+91 9871122334',
-      address: 'Main Market, Connaught Place, New Delhi',
-      area: 'Central Delhi',
-      gstNumber: '07GREEN5678D1Z2',
-      outstandingBalance: 3200,
-      totalDeliveredValue: 12400,
-      totalPaidAmount: 9200,
-    });
-
-    await Shop.create({
-      shopCode: 'SHOP-103',
-      shopName: 'Organic Life Supermarket',
-      ownerName: 'Neha Sharma',
-      phone: '+91 9955443322',
-      address: 'Galleria Market, Gurugram',
-      area: 'Gurugram',
-      gstNumber: '06ORGAN9012E1Z8',
-      outstandingBalance: 0,
-      totalDeliveredValue: 15600,
-      totalPaidAmount: 15600,
-    });
-
-    // 6. Activity Log
+    // 5. Activity Log
     await ActivityLog.create([
       { action: 'Database Seed', description: 'Initial MamaFarm database populated with owner account 8130188878.' },
     ]);
