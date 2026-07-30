@@ -49,8 +49,8 @@ router.get('/:id', async (req: Request, res: Response) => {
     const payments = await Payment.find({ $or: [{ shop: id }, { shopId: id }] }).sort({ paymentDate: -1 });
     const returns = await ReturnOrder.find({ $or: [{ shop: id }, { shopId: id }] }).sort({ returnDate: -1 });
 
-    const totalDeliveredVal = deliveries.reduce((sum, d) => sum + (d.netAmount || 0), 0);
-    const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const grossDeliveredVal = deliveries.reduce((sum, d) => sum + Number(d.netAmount || 0), 0);
+    const grossPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
     let totalReturnedQty = 0;
     let totalReplacedQty = 0;
@@ -72,25 +72,30 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     const totalDeliveredQty = deliveries.reduce((sum, d) => sum + (d.items?.reduce((iSum: number, item: any) => iSum + (item.quantity || 0), 0) || 0), 0);
 
-    const calculatedOutstanding = deliveries.reduce(
-      (sum, d) => sum + Math.max(0, (d.netAmount || 0) - (d.amountPaid || 0)),
-      0
-    );
+    // Net Total Sales after deducting returned sprout value
+    const netSalesVal = Math.max(0, grossDeliveredVal - totalRefunds);
+
+    // Net Sales Payment Collected (capped at Net Sales)
+    const netSalesPayment = Math.min(grossPaid, netSalesVal);
+
+    // Outstanding Dues = Net Total Sales - Gross Payments Collected
+    const calculatedOutstanding = Math.max(0, netSalesVal - grossPaid);
 
     if (
-      shop.totalDeliveredValue !== totalDeliveredVal ||
-      shop.totalPaidAmount !== totalPaid ||
+      shop.totalDeliveredValue !== netSalesVal ||
+      shop.totalPaidAmount !== netSalesPayment ||
       shop.outstandingBalance !== calculatedOutstanding ||
       shop.totalDeliveredQuantity !== totalDeliveredQty ||
       shop.totalReturnedQuantity !== totalReturnedQty ||
       shop.totalReplacedQuantity !== totalReplacedQty
     ) {
-      shop.totalDeliveredValue = totalDeliveredVal;
-      shop.totalPaidAmount = totalPaid;
+      shop.totalDeliveredValue = netSalesVal;
+      shop.totalPaidAmount = netSalesPayment;
       shop.outstandingBalance = calculatedOutstanding;
       shop.totalDeliveredQuantity = totalDeliveredQty;
       shop.totalReturnedQuantity = totalReturnedQty;
       shop.totalReplacedQuantity = totalReplacedQty;
+      shop.currentQuantity = Math.max(0, totalDeliveredQty - totalReturnedQty);
       await shop.save();
     }
 
@@ -99,6 +104,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       const d = new Date(dateVal);
       if (isNaN(d.getTime())) return '';
       return d.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
@@ -170,7 +176,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     const ledger = [...deliveryEntries, ...standalonePaymentEntries, ...returnEntries].sort((a, b) => b.timestamp - a.timestamp);
 
     const salesGraph = deliveries.map((d: any) => ({
-      date: new Date(d.deliveryDate || d.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }),
+      date: new Date(d.deliveryDate || d.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' }),
       amount: d.netAmount || 0,
     })).reverse();
 
@@ -190,9 +196,11 @@ router.get('/:id', async (req: Request, res: Response) => {
         totalDeliveredQty,
         totalReturnedQty,
         totalReplacedQty,
-        currentQuantity: totalDeliveredQty - totalReturnedQty,
-        totalDeliveredVal,
-        totalPaid,
+        currentQuantity: Math.max(0, totalDeliveredQty - totalReturnedQty),
+        grossDeliveredVal,
+        totalDeliveredVal: netSalesVal,
+        grossPaid,
+        totalPaid: netSalesPayment,
         totalRefunds,
         pendingPayment: calculatedOutstanding,
         dueSyncDate,

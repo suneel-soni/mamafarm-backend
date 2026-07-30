@@ -97,12 +97,12 @@ router.get('/sales', async (req: Request, res: Response) => {
     const dailyMap: Record<string, { date: string; sales: number; deliveries: number }> = {};
     for (let i = 13; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      const dateKey = d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+      const dateKey = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
       dailyMap[dateKey] = { date: dateKey, sales: 0, deliveries: 0 };
     }
 
     deliveries.forEach((d) => {
-      const dateKey = new Date(d.deliveryDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+      const dateKey = new Date(d.deliveryDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
       if (dailyMap[dateKey]) {
         dailyMap[dateKey].sales += d.netAmount || 0;
         dailyMap[dateKey].deliveries += 1;

@@ -34,16 +34,19 @@ async function recalculateShopCounters(shopId: string) {
     });
   });
 
-  const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
-  const outstandingBalance = Math.max(0, totalDeliveredValue - totalPaid - totalRefunds);
+  const grossPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const netSalesVal = Math.max(0, totalDeliveredValue - totalRefunds);
+  const netSalesPayment = Math.min(grossPaid, netSalesVal);
+  const outstandingBalance = Math.max(0, netSalesVal - grossPaid);
 
   shop.totalDeliveredQuantity = totalDeliveredQty;
   shop.totalReturnedQuantity = totalReturnedQty;
-  shop.totalDeliveredValue = totalDeliveredValue;
-  shop.totalPaidAmount = totalPaid;
+  shop.totalDeliveredValue = netSalesVal;
+  shop.totalPaidAmount = netSalesPayment;
   shop.outstandingBalance = outstandingBalance;
+  shop.currentQuantity = Math.max(0, totalDeliveredQty - totalReturnedQty);
   if (deliveries.length > 0) {
-    const sorted = [...deliveries].sort((a, b) => new Date(b.deliveryDate).getTime() - new Date(a.deliveryDate).getTime());
+    const sorted = [...deliveries].sort((a, b) => new Date(b.deliveryDate || b.createdAt).getTime() - new Date(a.deliveryDate || a.createdAt).getTime());
     shop.lastDeliveryDate = sorted[0].deliveryDate;
   }
   await shop.save();

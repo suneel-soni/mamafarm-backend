@@ -16,13 +16,21 @@ async function recalculateShop(shopId: string) {
   const payments = await Payment.find({ shop: shopId });
   const returns = await ReturnOrder.find({ shop: shopId });
 
-  const totalDeliveredValue = deliveries.reduce((sum, d) => sum + (d.netAmount || 0), 0);
-  const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
-  const totalRefunds = returns.reduce((sum, r) => sum + (r.totalRefundAmount || 0), 0);
+  const grossDeliveredValue = deliveries.reduce((sum, d) => sum + Number(d.netAmount || 0), 0);
+  const grossPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  let totalRefunds = 0;
+  returns.forEach((r) => {
+    const isRep = r.type === 'replacement' || r.isReplacement;
+    if (!isRep) totalRefunds += Number(r.totalRefundAmount || 0);
+  });
 
-  shop.totalDeliveredValue = totalDeliveredValue;
-  shop.totalPaidAmount = totalPaid;
-  shop.outstandingBalance = Math.max(0, totalDeliveredValue - totalPaid - totalRefunds);
+  const netSalesVal = Math.max(0, grossDeliveredValue - totalRefunds);
+  const netSalesPayment = Math.min(grossPaid, netSalesVal);
+  const outstandingBalance = Math.max(0, netSalesVal - grossPaid);
+
+  shop.totalDeliveredValue = netSalesVal;
+  shop.totalPaidAmount = netSalesPayment;
+  shop.outstandingBalance = outstandingBalance;
   await shop.save();
 }
 

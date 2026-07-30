@@ -33,24 +33,24 @@ async function recalculateShop(shopId: string) {
     }
   });
 
-  const totalDeliveredValue = deliveries.reduce((sum, d) => sum + (d.netAmount || 0), 0);
-  const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+  const grossDeliveredValue = deliveries.reduce((sum, d) => sum + Number(d.netAmount || 0), 0);
+  const grossPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const totalDeliveredQty = deliveries.reduce(
     (sum, d) => sum + (d.items?.reduce((iSum: number, item: any) => iSum + (item.quantity || 0), 0) || 0),
     0
   );
 
-  const calculatedOutstanding = deliveries.reduce(
-    (sum, d) => sum + Math.max(0, (d.netAmount || 0) - (d.amountPaid || 0)),
-    0
-  );
+  const netSalesVal = Math.max(0, grossDeliveredValue - totalRefunds);
+  const netSalesPayment = Math.min(grossPaid, netSalesVal);
+  const calculatedOutstanding = Math.max(0, netSalesVal - grossPaid);
 
   shop.totalDeliveredQuantity = totalDeliveredQty;
   shop.totalReturnedQuantity = totalReturnedQty;
   shop.totalReplacedQuantity = totalReplacedQty;
-  shop.totalDeliveredValue = totalDeliveredValue;
-  shop.totalPaidAmount = totalPaid;
+  shop.totalDeliveredValue = netSalesVal;
+  shop.totalPaidAmount = netSalesPayment;
   shop.outstandingBalance = calculatedOutstanding;
+  shop.currentQuantity = Math.max(0, totalDeliveredQty - totalReturnedQty);
   await shop.save();
 }
 

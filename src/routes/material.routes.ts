@@ -63,7 +63,7 @@ router.get('/summary', async (req: Request, res: Response) => {
       categoryTotals[cat].itemsCount += 1;
 
       const d = new Date(mat.purchaseDate || mat.createdAt || Date.now());
-      const dateKey = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      const dateKey = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' });
       const timestamp = d.getTime();
 
       if (!groupedMap[dateKey]) {
