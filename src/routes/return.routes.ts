@@ -11,30 +11,57 @@ async function recalculateShop(shopId: string) {
   const shop = await Shop.findById(shopId);
   if (!shop) return;
 
-  const deliveries = await Delivery.find({ shop: shopId });
-  const payments = await Payment.find({ shop: shopId });
-  const returns = await ReturnOrder.find({ shop: shopId });
+  const deliveries = await Delivery.find({ $or: [{ shop: shopId }, { shopId: shopId }] });
+  const payments = await Payment.find({ $or: [{ shop: shopId }, { shopId: shopId }] });
+  const returns = await ReturnOrder.find({ $or: [{ shop: shopId }, { shopId: shopId }] });
 
   let totalReturnedQty = 0;
+  let totalReplacedQty = 0;
   let totalRefunds = 0;
+
   returns.forEach((r) => {
-    totalRefunds += r.totalRefundAmount || 0;
-    r.items.forEach((item: any) => {
-      totalReturnedQty += item.quantity || 0;
-    });
+    const isRep = r.type === 'replacement' || r.isReplacement;
+    if (isRep) {
+      r.items.forEach((item: any) => {
+        totalReplacedQty += Number(item.quantity || 0);
+      });
+    } else {
+      totalRefunds += Number(r.totalRefundAmount || 0);
+      r.items.forEach((item: any) => {
+        totalReturnedQty += Number(item.quantity || 0);
+      });
+    }
   });
 
   const totalDeliveredValue = deliveries.reduce((sum, d) => sum + (d.netAmount || 0), 0);
   const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+  const totalDeliveredQty = deliveries.reduce(
+    (sum, d) => sum + (d.items?.reduce((iSum: number, item: any) => iSum + (item.quantity || 0), 0) || 0),
+    0
+  );
 
+  const calculatedOutstanding = deliveries.reduce(
+    (sum, d) => sum + Math.max(0, (d.netAmount || 0) - (d.amountPaid || 0)),
+    0
+  );
+
+  shop.totalDeliveredQuantity = totalDeliveredQty;
   shop.totalReturnedQuantity = totalReturnedQty;
-  shop.outstandingBalance = Math.max(0, totalDeliveredValue - totalPaid - totalRefunds);
+  shop.totalReplacedQuantity = totalReplacedQty;
+  shop.totalDeliveredValue = totalDeliveredValue;
+  shop.totalPaidAmount = totalPaid;
+  shop.outstandingBalance = calculatedOutstanding;
   await shop.save();
 }
 
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const returns = await ReturnOrder.find().sort({ returnDate: -1 });
+    const { shopId } = req.query;
+    const filter: any = {};
+    if (shopId) {
+      filter.$or = [{ shop: shopId }, { shopId: shopId }];
+    }
+    const returns = await ReturnOrder.find(filter).sort({ returnDate: -1, createdAt: -1 });
     return successResponse(res, returns);
   } catch (error: any) {
     return errorResponse(res, error.message || 'Error fetching return orders', 500);
@@ -52,21 +79,25 @@ router.post('/', async (req: Request, res: Response) => {
     const shop = await Shop.findById(targetShopId);
     if (!shop) return errorResponse(res, 'Shop not found', 400);
 
+    const isReplacement = body.type === 'replacement' || body.isReplacement === true;
     const count = await ReturnOrder.countDocuments();
-    const returnNumber = `RET-${Date.now().toString().slice(-4)}-${count + 1}`;
+    const prefix = isReplacement ? 'REP' : 'RET';
+    const returnNumber = `${prefix}-${Date.now().toString().slice(-4)}-${count + 1}`;
 
-    const totalRefundAmount = body.items.reduce(
-      (sum: number, item: any) => sum + item.quantity * item.rate,
-      0
-    );
+    const totalRefundAmount = isReplacement
+      ? 0
+      : body.items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0) * Number(item.rate || 0), 0);
 
     const newReturn = await ReturnOrder.create({
       ...body,
+      type: isReplacement ? 'replacement' : 'return',
+      isReplacement,
       shop: shop._id,
       shopId: shop._id,
       returnNumber,
       shopName: shop.shopName,
       totalRefundAmount,
+      reason: body.reason || (isReplacement ? 'Expired Packet Replacement' : 'Unsold / Expired Return'),
     });
 
     await recalculateShop(String(shop._id));
@@ -74,6 +105,45 @@ router.post('/', async (req: Request, res: Response) => {
     return successResponse(res, newReturn, 201);
   } catch (error: any) {
     return errorResponse(res, error.message || 'Error processing return order', 500);
+  }
+});
+
+router.put('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const body = req.body;
+
+    const existingReturn = await ReturnOrder.findById(id);
+    if (!existingReturn) {
+      return errorResponse(res, 'Return/Replacement record not found', 404);
+    }
+
+    const isReplacement = body.type === 'replacement' || body.isReplacement === true;
+    const items = body.items || existingReturn.items;
+
+    const totalRefundAmount = isReplacement
+      ? 0
+      : items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0) * Number(item.rate || 0), 0);
+
+    const updated = await ReturnOrder.findByIdAndUpdate(
+      id,
+      {
+        ...body,
+        type: isReplacement ? 'replacement' : 'return',
+        isReplacement,
+        items,
+        totalRefundAmount,
+      },
+      { new: true }
+    );
+
+    if (updated) {
+      await recalculateShop(String(updated.shop));
+    }
+
+    return successResponse(res, updated);
+  } catch (error: any) {
+    return errorResponse(res, error.message || 'Error updating return record', 500);
   }
 });
 

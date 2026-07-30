@@ -10,6 +10,8 @@ export interface IReturnItem {
 
 export interface IReturnOrder extends Document {
   returnNumber: string;
+  type: 'return' | 'replacement';
+  isReplacement: boolean;
   shop: mongoose.Types.ObjectId;
   shopName: string;
   deliveryId?: mongoose.Types.ObjectId;
@@ -25,6 +27,8 @@ export interface IReturnOrder extends Document {
 const returnOrderSchema = new Schema<IReturnOrder>(
   {
     returnNumber: { type: String, required: true, unique: true },
+    type: { type: String, enum: ['return', 'replacement'], default: 'return' },
+    isReplacement: { type: Boolean, default: false },
     shop: { type: Schema.Types.ObjectId, ref: 'Shop', required: true },
     shopName: { type: String, default: '' },
     deliveryId: { type: Schema.Types.ObjectId, ref: 'Delivery' },

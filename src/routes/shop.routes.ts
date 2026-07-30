@@ -51,10 +51,26 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     const totalDeliveredVal = deliveries.reduce((sum, d) => sum + (d.netAmount || 0), 0);
     const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
-    const totalRefunds = returns.reduce((sum, r) => sum + (r.totalRefundAmount || 0), 0);
+
+    let totalReturnedQty = 0;
+    let totalReplacedQty = 0;
+    let totalRefunds = 0;
+
+    returns.forEach((r: any) => {
+      const isRep = r.type === 'replacement' || r.isReplacement;
+      if (isRep) {
+        r.items?.forEach((item: any) => {
+          totalReplacedQty += Number(item.quantity || 0);
+        });
+      } else {
+        totalRefunds += Number(r.totalRefundAmount || 0);
+        r.items?.forEach((item: any) => {
+          totalReturnedQty += Number(item.quantity || 0);
+        });
+      }
+    });
 
     const totalDeliveredQty = deliveries.reduce((sum, d) => sum + (d.items?.reduce((iSum: number, item: any) => iSum + (item.quantity || 0), 0) || 0), 0);
-    const totalReturnedQty = returns.reduce((sum, r) => sum + (r.items?.reduce((iSum: number, item: any) => iSum + (item.quantity || 0), 0) || 0), 0);
 
     const calculatedOutstanding = deliveries.reduce(
       (sum, d) => sum + Math.max(0, (d.netAmount || 0) - (d.amountPaid || 0)),
@@ -66,13 +82,15 @@ router.get('/:id', async (req: Request, res: Response) => {
       shop.totalPaidAmount !== totalPaid ||
       shop.outstandingBalance !== calculatedOutstanding ||
       shop.totalDeliveredQuantity !== totalDeliveredQty ||
-      shop.totalReturnedQuantity !== totalReturnedQty
+      shop.totalReturnedQuantity !== totalReturnedQty ||
+      shop.totalReplacedQuantity !== totalReplacedQty
     ) {
       shop.totalDeliveredValue = totalDeliveredVal;
       shop.totalPaidAmount = totalPaid;
       shop.outstandingBalance = calculatedOutstanding;
       shop.totalDeliveredQuantity = totalDeliveredQty;
       shop.totalReturnedQuantity = totalReturnedQty;
+      shop.totalReplacedQuantity = totalReplacedQty;
       await shop.save();
     }
 
@@ -125,20 +143,29 @@ router.get('/:id', async (req: Request, res: Response) => {
         balance: 0,
       }));
 
-    const returnEntries = returns.map((r: any) => ({
-      _id: r._id,
-      id: r._id,
-      date: formatDateTime(r.returnDate || r.createdAt),
-      timestamp: new Date(r.returnDate || r.createdAt).getTime(),
-      type: 'return',
-      reference: r.returnNumber || 'RET-2026',
-      description: `Returned ${r.items?.map((i: any) => `${i.quantity} ${i.sproutType || 'Sprouts'}`).join(', ') || 'Sprouts'} (${r.reason || 'Unsold'})`,
-      debit: 0,
-      credit: r.totalRefundAmount || 0,
-      amountPaid: r.totalRefundAmount || 0,
-      paymentStatus: 'refunded',
-      balance: 0,
-    }));
+    const returnEntries = returns.map((r: any) => {
+      const isRep = r.type === 'replacement' || r.isReplacement;
+      const itemsList = r.items?.map((i: any) => `${i.quantity} ${i.sproutType || 'Sprouts'}`).join(', ') || 'Sprouts';
+      return {
+        _id: r._id,
+        id: r._id,
+        date: formatDateTime(r.returnDate || r.createdAt),
+        timestamp: new Date(r.returnDate || r.createdAt).getTime(),
+        type: isRep ? 'replacement' : 'return',
+        returnType: isRep ? 'replacement' : 'return',
+        reference: r.returnNumber || (isRep ? 'REP-2026' : 'RET-2026'),
+        description: isRep
+          ? `Replaced ${itemsList} (${r.reason || 'Expired Exchange'})`
+          : `Returned ${itemsList} (${r.reason || 'Unsold'})`,
+        debit: 0,
+        credit: isRep ? 0 : (r.totalRefundAmount || 0),
+        amountPaid: isRep ? 0 : (r.totalRefundAmount || 0),
+        paymentStatus: isRep ? 'replaced' : 'refunded',
+        balance: 0,
+        items: r.items,
+        reason: r.reason,
+      };
+    });
 
     const ledger = [...deliveryEntries, ...standalonePaymentEntries, ...returnEntries].sort((a, b) => b.timestamp - a.timestamp);
 
@@ -162,6 +189,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       summary: {
         totalDeliveredQty,
         totalReturnedQty,
+        totalReplacedQty,
         currentQuantity: totalDeliveredQty - totalReturnedQty,
         totalDeliveredVal,
         totalPaid,
