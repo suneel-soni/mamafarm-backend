@@ -33,7 +33,7 @@ const shopSchema = new Schema<IShop>(
     gstNumber: { type: String, default: '' },
     image: {
       type: String,
-      default: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=600',
+      default: '/images/shop-placeholder.jpg',
     },
     totalDeliveredQuantity: { type: Number, default: 0 },
     totalReturnedQuantity: { type: Number, default: 0 },
