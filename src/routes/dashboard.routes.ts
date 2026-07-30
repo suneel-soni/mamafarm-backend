@@ -3,6 +3,7 @@ import Delivery from '../models/Delivery';
 import Shop from '../models/Shop';
 import Material from '../models/Material';
 import Payment from '../models/Payment';
+import ReturnOrder from '../models/ReturnOrder';
 import ActivityLog from '../models/ActivityLog';
 import { successResponse, errorResponse } from '../utils/response';
 
@@ -63,20 +64,43 @@ router.get('/sales', async (req: Request, res: Response) => {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const deliveries = await Delivery.find().sort({ deliveryDate: -1 });
+    const returns = await ReturnOrder.find();
 
     let todaySales = 0;
     let weeklySales = 0;
     let monthlySales = 0;
     let totalRevenue = 0;
+    let totalDeliveredPackets = 0;
+    let totalDeliveredAmount = 0;
 
     deliveries.forEach((d) => {
       const amt = d.netAmount || 0;
       const dDate = new Date(d.deliveryDate);
 
       totalRevenue += amt;
+      totalDeliveredAmount += amt;
       if (dDate >= startOfToday) todaySales += amt;
       if (dDate >= startOfWeek) weeklySales += amt;
       if (dDate >= startOfMonth) monthlySales += amt;
+
+      const itemsQty = d.items?.reduce((iSum: number, item: any) => iSum + Number(item.quantity || 0), 0) || 0;
+      totalDeliveredPackets += itemsQty;
+    });
+
+    let totalReplacedPackets = 0;
+    let totalReplacedAmount = 0;
+
+    returns.forEach((r) => {
+      const isRep = r.type === 'replacement' || r.isReplacement;
+      if (isRep) {
+        r.items?.forEach((item: any) => {
+          const qty = Number(item.quantity || 0);
+          const rate = Number(item.rate || 0);
+          const amt = Number(item.amount || qty * rate);
+          totalReplacedPackets += qty;
+          totalReplacedAmount += amt;
+        });
+      }
     });
 
     const shops = await Shop.find().sort({ totalDeliveredValue: -1 });
@@ -143,6 +167,10 @@ router.get('/sales', async (req: Request, res: Response) => {
       monthlySales,
       totalRevenue,
       pendingCollection,
+      totalDeliveredPackets,
+      totalDeliveredAmount,
+      totalReplacedPackets,
+      totalReplacedAmount,
       topPerformingShops,
       dailyGraph,
       monthlyGraph,
