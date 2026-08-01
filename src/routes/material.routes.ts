@@ -22,21 +22,34 @@ router.get('/summary', async (req: Request, res: Response) => {
     let end: Date | null = null;
 
     if (filter === 'today') {
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    } else if (filter === 'yesterday') {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
     } else if (filter === 'this_week') {
       const day = now.getDay() || 7;
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day + 1);
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day + 1, 0, 0, 0, 0);
     } else if (filter === 'this_month') {
-      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     } else if (filter === 'custom' && startDate) {
       start = new Date(startDate as string);
-      if (endDate) end = new Date(endDate as string);
+      if (endDate) {
+        const eDate = new Date(endDate as string);
+        end = new Date(eDate.getFullYear(), eDate.getMonth(), eDate.getDate(), 23, 59, 59, 999);
+      }
     }
 
     const query: any = {};
-    if (start) {
-      query.purchaseDate = { $gte: start };
-      if (end) query.purchaseDate.$lte = end;
+    if (start || end) {
+      const dateCond: any = {};
+      if (start) dateCond.$gte = start;
+      if (end) dateCond.$lte = end;
+
+      query.$or = [
+        { purchaseDate: dateCond },
+        { purchaseDate: { $exists: false }, createdAt: dateCond },
+      ];
     }
 
     const materials = await Material.find(query).populate('supplier').sort({ purchaseDate: -1, createdAt: -1 });
