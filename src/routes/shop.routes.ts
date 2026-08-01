@@ -175,10 +175,34 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     const ledger = [...deliveryEntries, ...standalonePaymentEntries, ...returnEntries].sort((a, b) => b.timestamp - a.timestamp);
 
-    const salesGraph = deliveries.map((d: any) => ({
-      date: new Date(d.deliveryDate || d.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' }),
-      amount: d.netAmount || 0,
-    })).reverse();
+    const salesByDateMap = new Map<string, { date: string; amount: number; ordersCount: number; timestamp: number }>();
+
+    const chronologicalDeliveries = [...deliveries].sort((a: any, b: any) =>
+      new Date(a.deliveryDate || a.createdAt).getTime() - new Date(b.deliveryDate || b.createdAt).getTime()
+    );
+
+    chronologicalDeliveries.forEach((d: any) => {
+      const dateObj = new Date(d.deliveryDate || d.createdAt);
+      if (isNaN(dateObj.getTime())) return;
+
+      const dateStr = dateObj.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
+      const key = dateObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+      if (salesByDateMap.has(key)) {
+        const existing = salesByDateMap.get(key)!;
+        existing.amount += Number(d.netAmount || 0);
+        existing.ordersCount += 1;
+      } else {
+        salesByDateMap.set(key, {
+          date: dateStr,
+          amount: Number(d.netAmount || 0),
+          ordersCount: 1,
+          timestamp: dateObj.getTime(),
+        });
+      }
+    });
+
+    const salesGraph = Array.from(salesByDateMap.values());
 
     const unpaidDeliveries = deliveries.filter((d: any) => (d.netAmount || 0) > (d.amountPaid || 0));
     const dueSyncDate = unpaidDeliveries.length > 0
