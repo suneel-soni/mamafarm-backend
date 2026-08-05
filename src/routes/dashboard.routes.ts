@@ -136,7 +136,7 @@ router.get('/sales', async (req: Request, res: Response) => {
     const dailyGraph = Object.values(dailyMap);
 
     const payments = await Payment.find({ $or: [{ entityType: 'shop' }, { entityType: { $exists: false } }] });
-    const totalCollectionAllTime = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalCollectionAllTime = Math.max(0, totalRevenue - pendingCollection);
 
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const currentYear = now.getFullYear();
