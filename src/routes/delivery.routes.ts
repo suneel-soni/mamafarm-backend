@@ -26,21 +26,49 @@ async function recalculateShopCounters(shopId: string) {
   });
 
   let totalReturnedQty = 0;
+  let totalReplacedQty = 0;
   let totalRefunds = 0;
   returns.forEach((r) => {
-    totalRefunds += r.totalRefundAmount || 0;
-    r.items.forEach((item: any) => {
-      totalReturnedQty += item.quantity || 0;
-    });
+    const isRep = r.type === 'replacement' || r.isReplacement;
+    if (isRep) {
+      r.items?.forEach((item: any) => {
+        totalReplacedQty += Number(item.quantity || 0);
+      });
+    } else {
+      totalRefunds += Number(r.totalRefundAmount || 0);
+      r.items?.forEach((item: any) => {
+        totalReturnedQty += Number(item.quantity || 0);
+      });
+    }
   });
 
-  const grossPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const isDeliveryPayment = (p: any) => {
+    const notes = (p.notes || '').toLowerCase();
+    return (
+      notes.includes('delivery') ||
+      notes.includes('dispatch') ||
+      notes.includes('order') ||
+      notes.includes('collected') ||
+      notes.includes('immediate') ||
+      notes.includes('settlement') ||
+      Boolean(p.delivery) ||
+      Boolean(p.deliveryId)
+    );
+  };
+
+  const standalonePayments = payments.filter((p: any) => !isDeliveryPayment(p));
+
+  const totalDeliveryPaid = deliveries.reduce((sum, d) => sum + Number(d.amountPaid || 0), 0);
+  const totalStandalonePaid = standalonePayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const grossPaid = totalDeliveryPaid + totalStandalonePaid;
+
   const netSalesVal = Math.max(0, totalDeliveredValue - totalRefunds);
   const netSalesPayment = Math.min(grossPaid, netSalesVal);
   const outstandingBalance = Math.max(0, netSalesVal - grossPaid);
 
   shop.totalDeliveredQuantity = totalDeliveredQty;
   shop.totalReturnedQuantity = totalReturnedQty;
+  shop.totalReplacedQuantity = totalReplacedQty;
   shop.totalDeliveredValue = netSalesVal;
   shop.totalPaidAmount = netSalesPayment;
   shop.outstandingBalance = outstandingBalance;

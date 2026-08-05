@@ -33,8 +33,27 @@ async function recalculateShop(shopId: string) {
     }
   });
 
+  const isDeliveryPayment = (p: any) => {
+    const notes = (p.notes || '').toLowerCase();
+    return (
+      notes.includes('delivery') ||
+      notes.includes('dispatch') ||
+      notes.includes('order') ||
+      notes.includes('collected') ||
+      notes.includes('immediate') ||
+      notes.includes('settlement') ||
+      Boolean(p.delivery) ||
+      Boolean(p.deliveryId)
+    );
+  };
+
+  const standalonePayments = payments.filter((p: any) => !isDeliveryPayment(p));
+
   const grossDeliveredValue = deliveries.reduce((sum, d) => sum + Number(d.netAmount || 0), 0);
-  const grossPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const totalDeliveryPaid = deliveries.reduce((sum, d) => sum + Number(d.amountPaid || 0), 0);
+  const totalStandalonePaid = standalonePayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const grossPaid = totalDeliveryPaid + totalStandalonePaid;
+
   const totalDeliveredQty = deliveries.reduce(
     (sum, d) => sum + (d.items?.reduce((iSum: number, item: any) => iSum + (item.quantity || 0), 0) || 0),
     0
@@ -84,14 +103,26 @@ router.post('/', async (req: Request, res: Response) => {
     const prefix = isReplacement ? 'REP' : 'RET';
     const returnNumber = `${prefix}-${Date.now().toString().slice(-4)}-${count + 1}`;
 
+    const normalizedItems = (body.items || []).map((item: any) => {
+      const qty = Number(item.quantity) || 0;
+      const rate = Number(item.rate) || 0;
+      return {
+        ...item,
+        quantity: qty,
+        rate: rate,
+        amount: isReplacement ? 0 : (item.amount !== undefined ? Number(item.amount) : qty * rate),
+      };
+    });
+
     const totalRefundAmount = isReplacement
       ? 0
-      : body.items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0) * Number(item.rate || 0), 0);
+      : normalizedItems.reduce((sum: number, item: any) => sum + item.amount, 0);
 
     const newReturn = await ReturnOrder.create({
       ...body,
       type: isReplacement ? 'replacement' : 'return',
       isReplacement,
+      items: normalizedItems,
       shop: shop._id,
       shopId: shop._id,
       returnNumber,
@@ -119,11 +150,22 @@ router.put('/:id', async (req: Request, res: Response) => {
     }
 
     const isReplacement = body.type === 'replacement' || body.isReplacement === true;
-    const items = body.items || existingReturn.items;
+    const rawItems = body.items || existingReturn.items || [];
+
+    const normalizedItems = rawItems.map((item: any) => {
+      const qty = Number(item.quantity) || 0;
+      const rate = Number(item.rate) || 0;
+      return {
+        ...item,
+        quantity: qty,
+        rate: rate,
+        amount: isReplacement ? 0 : (item.amount !== undefined ? Number(item.amount) : qty * rate),
+      };
+    });
 
     const totalRefundAmount = isReplacement
       ? 0
-      : items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0) * Number(item.rate || 0), 0);
+      : normalizedItems.reduce((sum: number, item: any) => sum + item.amount, 0);
 
     const updated = await ReturnOrder.findByIdAndUpdate(
       id,
@@ -131,7 +173,7 @@ router.put('/:id', async (req: Request, res: Response) => {
         ...body,
         type: isReplacement ? 'replacement' : 'return',
         isReplacement,
-        items,
+        items: normalizedItems,
         totalRefundAmount,
       },
       { new: true }

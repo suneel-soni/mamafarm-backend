@@ -49,8 +49,26 @@ router.get('/:id', async (req: Request, res: Response) => {
     const payments = await Payment.find({ $or: [{ shop: id }, { shopId: id }] }).sort({ paymentDate: -1 });
     const returns = await ReturnOrder.find({ $or: [{ shop: id }, { shopId: id }] }).sort({ returnDate: -1 });
 
+    const isDeliveryPayment = (p: any) => {
+      const notes = (p.notes || '').toLowerCase();
+      return (
+        notes.includes('delivery') ||
+        notes.includes('dispatch') ||
+        notes.includes('order') ||
+        notes.includes('collected') ||
+        notes.includes('immediate') ||
+        notes.includes('settlement') ||
+        Boolean(p.delivery) ||
+        Boolean(p.deliveryId)
+      );
+    };
+
+    const standalonePayments = payments.filter((p: any) => !isDeliveryPayment(p));
+
     const grossDeliveredVal = deliveries.reduce((sum, d) => sum + Number(d.netAmount || 0), 0);
-    const grossPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const totalDeliveryPaid = deliveries.reduce((sum, d) => sum + Number(d.amountPaid || 0), 0);
+    const totalStandalonePaid = standalonePayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const grossPaid = totalDeliveryPaid + totalStandalonePaid;
 
     let totalReturnedQty = 0;
     let totalReplacedQty = 0;
@@ -75,7 +93,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     // Net Total Sales after deducting returned sprout value
     const netSalesVal = Math.max(0, grossDeliveredVal - totalRefunds);
 
-    // Net Sales Payment Collected (capped at Net Sales)
+    // Net Sales Payment Collected
     const netSalesPayment = Math.min(grossPaid, netSalesVal);
 
     // Outstanding Dues = Net Total Sales - Gross Payments Collected
@@ -130,10 +148,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     }));
 
     const standalonePaymentEntries = payments
-      .filter((p: any) => {
-        const notes = (p.notes || '').toLowerCase();
-        return !notes.includes('immediate payment at delivery') && !notes.includes('collected payment for order');
-      })
+      .filter((p: any) => !isDeliveryPayment(p))
       .map((p: any) => ({
         _id: p._id,
         id: p._id,

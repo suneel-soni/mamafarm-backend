@@ -16,8 +16,27 @@ async function recalculateShop(shopId: string) {
   const payments = await Payment.find({ shop: shopId });
   const returns = await ReturnOrder.find({ shop: shopId });
 
+  const isDeliveryPayment = (p: any) => {
+    const notes = (p.notes || '').toLowerCase();
+    return (
+      notes.includes('delivery') ||
+      notes.includes('dispatch') ||
+      notes.includes('order') ||
+      notes.includes('collected') ||
+      notes.includes('immediate') ||
+      notes.includes('settlement') ||
+      Boolean(p.delivery) ||
+      Boolean(p.deliveryId)
+    );
+  };
+
+  const standalonePayments = payments.filter((p: any) => !isDeliveryPayment(p));
+
   const grossDeliveredValue = deliveries.reduce((sum, d) => sum + Number(d.netAmount || 0), 0);
-  const grossPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const totalDeliveryPaid = deliveries.reduce((sum, d) => sum + Number(d.amountPaid || 0), 0);
+  const totalStandalonePaid = standalonePayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const grossPaid = totalDeliveryPaid + totalStandalonePaid;
+
   let totalRefunds = 0;
   returns.forEach((r) => {
     const isRep = r.type === 'replacement' || r.isReplacement;
@@ -96,6 +115,23 @@ router.delete('/:id', async (req: Request, res: Response) => {
     return successResponse(res, { message: 'Payment record deleted successfully' });
   } catch (error: any) {
     return errorResponse(res, error.message || 'Error deleting payment', 500);
+  }
+});
+
+router.put('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const body = req.body;
+    const payment = await Payment.findByIdAndUpdate(id, body, { new: true });
+    if (!payment) return errorResponse(res, 'Payment record not found', 404);
+
+    if (payment.entityType === 'shop' && payment.shop) {
+      await recalculateShop(String(payment.shop));
+    }
+
+    return successResponse(res, payment);
+  } catch (error: any) {
+    return errorResponse(res, error.message || 'Error updating payment', 500);
   }
 });
 
